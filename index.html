@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  /* Layout: stage (video + two-line KTV subtitle bar) on top, scrolling lyric sheet and controls below */
+  /* Layout: stage (video + two-line KTV subtitle bar) on top, controls and timing recorder, scrolling lyric sheet below */
   :root {
     --bg: #07080f;
     --panel: #10121d;
@@ -21,6 +21,7 @@
     --font-mono: "Space Mono", ui-monospace, monospace;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; }
   body {
     background: var(--bg);
@@ -44,37 +45,46 @@
   }
   .video.is-demo .demo { display: flex; }
 
-  .ktv { background: linear-gradient(180deg, #05060c, #0b0d1a); border: 1px solid var(--line); padding: 22px 16px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 190px; justify-content: center; }
-  .row { position: relative; text-align: center; font-weight: 900; line-height: 1.25; }
-  .row .base, .row .fill { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .row .base { color: #fff; }
-  .row .fill { position: absolute; left: 0; top: 0; right: 0; color: var(--blue); clip-path: inset(0 100% 0 0); }
-  .row .base, .row .fill { text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000; }
+  .ktv { position: relative; background: linear-gradient(180deg, #05060c, #0b0d1a); border: 1px solid var(--line); padding: 26px 16px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 190px; justify-content: center; }
+  .row { text-align: center; font-weight: 900; line-height: 1.3; }
+  .row .txt { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ch { position: relative; color: #fff; --r: 100%; }
+  .ch::after { content: attr(data-c); position: absolute; left: 0; top: 0; color: var(--blue); clip-path: inset(0 var(--r) 0 0); pointer-events: none; }
+  .ch, .ch::after { text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000; }
+  .ch.nextc { text-decoration: underline; text-decoration-color: var(--blue-glow); text-decoration-thickness: 3px; text-underline-offset: 8px; }
   .row.cur { font-size: clamp(26px, 6vw, 46px); }
-  .row.cur .fill { text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000, 0 0 18px rgba(47,139,255,.55); }
-  .row.nxt { font-size: clamp(18px, 3.6vw, 28px); opacity: .62; }
-  .row.nxt .fill { display: none; }
-  .count { position: absolute; left: 0; right: 0; top: -2px; display: flex; justify-content: center; gap: 8px; height: 10px; }
+  .row.nxt { font-size: clamp(18px, 3.6vw, 28px); opacity: .62; color: #fff; text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000; }
+  .count { position: absolute; left: 0; right: 0; top: 10px; display: flex; justify-content: center; gap: 8px; height: 10px; }
   .count i { width: 9px; height: 9px; border-radius: 50%; background: var(--blue); opacity: 0; transition: opacity .15s; }
   .count i.on { opacity: 1; }
 
   .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  button, label.btn {
+  button, label.btn, select {
     font: inherit; font-size: 13px; font-weight: 700; color: var(--text); background: var(--panel);
     border: 1px solid var(--line); padding: 8px 14px; cursor: pointer; min-height: 38px;
   }
   button:hover, label.btn:hover { border-color: var(--blue); }
-  button:focus-visible, label.btn:focus-within, input:focus-visible { outline: 2px solid var(--blue-glow); outline-offset: 2px; }
+  button:focus-visible, label.btn:focus-within, input:focus-visible, select:focus-visible { outline: 2px solid var(--blue-glow); outline-offset: 2px; }
   button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  button.on { border-color: var(--blue-glow); color: var(--blue-glow); }
   .offset { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--dim); }
   .offset b { color: var(--text); min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
   .time { font-family: var(--font-mono); font-size: 12px; color: var(--dim); margin-left: auto; font-variant-numeric: tabular-nums; }
   input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
 
+  .rec { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--blue); background: var(--panel); padding: 14px; }
+  .rec p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--dim); }
+  .rec .stat { font-family: var(--font-mono); font-size: 13px; color: var(--blue-glow); font-variant-numeric: tabular-nums; }
+  .rec .rrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .tap { min-height: 84px; width: 100%; font-size: 20px; letter-spacing: .12em; background: var(--blue); border-color: var(--blue); color: #fff; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  .tap:active { filter: brightness(1.25); }
+  textarea { width: 100%; height: 96px; font-family: var(--font-mono); font-size: 11px; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 8px; }
+
   .sheet { background: var(--panel); border: 1px solid var(--line); max-height: 320px; overflow-y: auto; padding: 6px 0; }
   .sheet button.l { display: flex; gap: 12px; width: 100%; text-align: left; background: none; border: 0; border-left: 3px solid transparent; padding: 8px 14px; min-height: 0; color: var(--dim); font-weight: 500; font-size: 15px; }
   .sheet button.l time { font-family: var(--font-mono); font-size: 11px; padding-top: 3px; flex: none; font-variant-numeric: tabular-nums; }
   .sheet button.l.on { color: var(--text); border-left-color: var(--blue); background: rgba(47,139,255,.1); }
+  .sheet button.l.done::after { content: "timed"; margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--blue-glow); padding-top: 4px; }
   .sheet button.l:hover { color: var(--text); }
   .note { font-size: 12px; color: var(--dim); line-height: 1.6; }
   @media (prefers-reduced-motion: reduce) { .count i { transition: none; } }
@@ -92,21 +102,39 @@
     <div class="demo">Demo clock mode. Press Play to preview the lyric sweep without the video.</div>
   </div>
 
-  <div class="ktv" aria-live="off">
-    <div class="row cur" id="cur"><span class="count" id="count"><i></i><i></i><i></i></span><span class="base" id="curBase">&nbsp;</span><span class="fill" id="curFill"></span></div>
-    <div class="row nxt"><span class="base" id="nxt">&nbsp;</span></div>
+  <div class="ktv">
+    <div class="count" id="count"><i></i><i></i><i></i></div>
+    <div class="row cur"><span class="txt" id="curTxt">&nbsp;</span></div>
+    <div class="row nxt"><span class="txt" id="nxt">&nbsp;</span></div>
   </div>
 
   <div class="controls">
     <button class="primary" id="playBtn">Play</button>
     <button id="restartBtn">Restart</button>
     <span class="offset">sync <button id="offMinus" aria-label="Lyrics earlier">-0.1</button><b id="offVal">0.0s</b><button id="offPlus" aria-label="Lyrics later">+0.1</button></span>
+    <button id="recBtn">Record timing</button>
     <label class="btn">Load SRT<input type="file" id="srtFile" accept=".srt,.txt"></label>
     <span class="time" id="timeLbl">0:00 / 0:00</span>
   </div>
 
+  <div class="rec" id="rec" hidden>
+    <p>Set sync to 0.0s, press Play, then press and hold <b>Space</b> (or the TAP button) once for each character as it is sung. On the last character of a line, keep holding for as long as the note is held. The underlined character is the one to tap next. Pick a slow speed for the rap parts. Tap a line in the list to jump back to it.</p>
+    <div class="rrow">
+      <label for="rateSel" class="stat">speed</label>
+      <select id="rateSel"><option value="0.5">0.5x</option><option value="0.75">0.75x</option><option value="1">1x</option></select>
+      <span class="stat" id="recStat"></span>
+    </div>
+    <button class="tap" id="tapBtn">TAP</button>
+    <div class="rrow">
+      <button id="redoBtn">Redo this line</button>
+      <button id="copyBtn">Copy timing JSON</button>
+      <button id="resetBtn">Clear all timing</button>
+    </div>
+    <textarea id="jsonBox" readonly hidden aria-label="Timing JSON"></textarea>
+  </div>
+
   <div class="sheet" id="sheet" role="list"></div>
-  <p class="note">If the sweep runs early or late, nudge sync until it matches the vocals. Tap any lyric line to jump to it. Load SRT swaps in another subtitle file for the same video.</p>
+  <p class="note">If the sweep runs early or late overall, nudge sync. Tap a lyric line to jump to it. Timing you record is saved in this browser. Send the copied JSON to Claude to make it the default for everyone.</p>
 </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
@@ -304,31 +332,61 @@ const SRT = `1
 00:03:00,200 --> 00:03:02,600
 下輩子……
 `;
+const TAP_LAT = 0.12; // seconds a human tap trails the sound
+const TKEY = "novaKtvTiming:" + VIDEO_ID;
 
 const $ = id => document.getElementById(id);
-let lines = [], offset = 0, player = null, ytReady = false, demo = false;
-let demoT = 0, demoPlaying = false, demoLast = 0, activeIdx = -2;
+let lines = [], timing = {}, persist = true, offset = 0;
+let player = null, ytReady = false, demo = false;
+let demoT = 0, demoPlaying = false, demoLast = 0, rate = 1;
+let activeIdx = -2, shownKey = -9, spans = [], curTimes = null, lastNext = -9;
+const rec = { on: false, line: 0, k: 0, st: [], down: false };
 
 function ts(s) { const m = s.match(/(\d+):(\d+):(\d+)[,.](\d+)/); return +m[1]*3600 + +m[2]*60 + +m[3] + +m[4]/1000; }
 function parseSRT(txt) {
   return txt.replace(/\r/g, "").split(/\n\s*\n/).map(b => {
     const p = b.trim().split("\n"); if (p.length < 3) return null;
     const m = p[1].match(/(\S+)\s*-->\s*(\S+)/); if (!m) return null;
-    return { s: ts(m[1]), e: ts(m[2]), t: p.slice(2).join("\n").trim() };
+    const s = ts(m[1]), e = ts(m[2]);
+    return { s0: s, e0: e, s, e, t: p.slice(2).join("\n").trim() };
   }).filter(Boolean);
 }
 function fmt(t) { t = Math.max(0, t|0); return Math.floor(t/60) + ":" + String(t%60).padStart(2, "0"); }
+const nonSpace = t => Array.from(t).filter(c => !/\s/.test(c));
+const r3 = x => Math.round(x * 1000) / 1000;
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+
+function hasTiming(i) { const tm = timing[i]; return !!(tm && lines[i] && tm.st.length === nonSpace(lines[i].t).length); }
+function applyTiming() {
+  lines.forEach((l, i) => {
+    l.s = l.s0; l.e = l.e0;
+    if (hasTiming(i)) { const tm = timing[i]; l.s = Math.min(l.s0, tm.st[0] - 0.2); l.e = Math.max(l.e0, tm.en[tm.en.length - 1] + 0.1); }
+  });
+  document.querySelectorAll(".sheet .l").forEach(n => n.classList.toggle("done", hasTiming(+n.dataset.i)));
+  shownKey = -9; lastNext = -9;
+}
+function timesFor(i) {
+  if (hasTiming(i)) return timing[i];
+  const l = lines[i], n = nonSpace(l.t).length, d = (l.e0 - l.s0) / Math.max(1, n), st = [], en = [];
+  for (let k = 0; k < n; k++) { st.push(l.s0 + k*d); en.push(l.s0 + (k+1)*d); }
+  return { st, en };
+}
+function save() { if (!persist) return; try { localStorage.setItem(TKEY, JSON.stringify(timing)); } catch (e) {} }
 
 function buildSheet() {
   const sh = $("sheet"); sh.innerHTML = "";
   lines.forEach((l, i) => {
     const b = document.createElement("button");
     b.className = "l"; b.dataset.i = i; b.setAttribute("role", "listitem");
-    b.innerHTML = "<time>" + fmt(l.s) + "</time><span></span>";
-    b.lastChild.textContent = l.t;
-    b.onclick = () => seek(Math.max(0, l.s - 1.5 - offset));
+    b.innerHTML = "<time>" + fmt(l.s0) + "</time><span></span>";
+    b.children[1].textContent = l.t;
+    b.onclick = () => {
+      if (rec.on) { rec.line = i; rec.k = 0; rec.st = []; rec.down = false; recText(); }
+      seek(Math.max(0, l.s0 - 2 - offset));
+    };
     sh.appendChild(b);
   });
+  applyTiming();
 }
 
 function now() {
@@ -336,13 +394,9 @@ function now() {
   return demoT;
 }
 function dur() { return (!demo && ytReady && player && player.getDuration) ? player.getDuration() : (lines.length ? lines[lines.length-1].e + 5 : 0); }
-function seek(t) {
-  if (!demo && ytReady) { player.seekTo(t, true); } else { demoT = t; demoLast = performance.now(); }
-}
-function isPlaying() {
-  if (!demo && ytReady) return player.getPlayerState && player.getPlayerState() === 1;
-  return demoPlaying;
-}
+function seek(t) { if (!demo && ytReady) player.seekTo(t, true); else { demoT = t; demoLast = performance.now(); } }
+function isPlaying() { return (!demo && ytReady) ? (player.getPlayerState && player.getPlayerState() === 1) : demoPlaying; }
+function setRate(r) { rate = r; if (!demo && ytReady && player.setPlaybackRate) player.setPlaybackRate(r); }
 
 function setActive(i) {
   if (i === activeIdx) return; activeIdx = i;
@@ -351,32 +405,42 @@ function setActive(i) {
   if (n) { n.classList.add("on"); const sh = $("sheet"); sh.scrollTop = n.offsetTop - sh.clientHeight/2 + n.clientHeight/2; }
 }
 
-function frame() {
-  if (demo || !ytReady) {
-    if (demoPlaying) { const n = performance.now(); demoT += (n - demoLast)/1000; demoLast = n; }
+function renderLine(i) {
+  const box = $("curTxt"); box.textContent = ""; spans = []; curTimes = null;
+  if (i < 0 || !lines[i]) { box.textContent = " "; return; }
+  for (const ch of Array.from(lines[i].t)) {
+    if (/\s/.test(ch)) { box.appendChild(document.createTextNode(ch)); continue; }
+    const s = document.createElement("span"); s.className = "ch"; s.dataset.c = ch; s.textContent = ch;
+    box.appendChild(s); spans.push(s);
   }
+  curTimes = timesFor(i);
+}
+
+function frame() {
+  if (demo || !ytReady) { if (demoPlaying) { const n = performance.now(); demoT += (n - demoLast)/1000 * rate; demoLast = n; } }
   const t = now() + offset;
   let cur = -1, next = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (t >= lines[i].s && t < lines[i].e) { cur = i; next = i + 1; break; }
-    if (lines[i].s > t) { next = i; break; }
-  }
+  for (let i = 0; i < lines.length; i++) if (t >= lines[i].s && t < lines[i].e) cur = i;
+  if (cur >= 0) next = cur + 1; else for (let i = 0; i < lines.length; i++) if (lines[i].s > t) { next = i; break; }
   const shown = cur >= 0 ? cur : next;
-  const curTxt = shown >= 0 && lines[shown] ? lines[shown].t : "";
-  const nxtTxt = (cur >= 0 ? lines[cur+1] : lines[next+1]) ? (cur >= 0 ? lines[cur+1].t : lines[next+1].t) : "";
-  if ($("curBase").dataset.k !== String(shown)) {
-    $("curBase").textContent = curTxt || " "; $("curFill").textContent = curTxt; $("curBase").dataset.k = shown;
-    $("nxt").textContent = nxtTxt || " ";
-  }
-  let p = 0;
-  if (cur >= 0) p = Math.min(1, (t - lines[cur].s) / Math.max(0.2, lines[cur].e - lines[cur].s));
-  else if (cur === -1 && shown === -1 && lines.length) p = 1;
-  $("curFill").style.clipPath = "inset(0 " + ((1 - p) * 100).toFixed(2) + "% 0 0)";
 
-  // countdown dots before a line that follows a gap of 3s or more
+  if (shown !== shownKey) { renderLine(shown); shownKey = shown; }
+  const nx = cur >= 0 ? cur + 1 : next + 1;
+  if (nx !== lastNext || shown !== shownKey) { $("nxt").textContent = (shown >= 0 && lines[nx]) ? lines[nx].t : " "; lastNext = nx; }
+
+  if (curTimes) {
+    for (let k = 0; k < spans.length; k++) {
+      let r = 100;
+      if (cur >= 0) { const a = curTimes.st[k], b = curTimes.en[k]; r = 100 - 100 * clamp((t - a) / Math.max(0.05, b - a), 0, 1); }
+      spans[k].style.setProperty("--r", r.toFixed(1) + "%");
+      const isNext = rec.on && shown === rec.line && k === rec.k;
+      if (spans[k].classList.contains("nextc") !== isNext) spans[k].classList.toggle("nextc", isNext);
+    }
+  }
+
   const dots = $("count").children;
-  let left = cur < 0 && next >= 0 ? lines[next].s - t : 99;
-  const gapBefore = next > 0 ? lines[next].s - lines[next-1].e : lines[next] ? lines[next].s : 0;
+  const left = cur < 0 && next >= 0 ? lines[next].s - t : 99;
+  const gapBefore = next > 0 ? lines[next].s - lines[next-1].e : (lines[next] ? lines[next].s : 0);
   for (let i = 0; i < 3; i++) dots[i].classList.toggle("on", cur < 0 && left <= 3 - i && left > 0 && gapBefore >= 3);
 
   setActive(cur >= 0 ? cur : (next > 0 ? next - 1 : -1));
@@ -385,21 +449,65 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
-function setDemo(on) {
-  demo = on; $("videoBox").classList.toggle("is-demo", on);
+/* ---- timing recorder ---- */
+function recText() {
+  const l = lines[rec.line]; if (!l) return;
+  const n = nonSpace(l.t);
+  $("recStat").textContent = "line " + (rec.line + 1) + "/" + lines.length + " · char " + Math.min(rec.k + 1, n.length) + "/" + n.length + " " + (n[rec.k] || "");
 }
+function tapDown() {
+  if (!rec.on || rec.down || !isPlaying()) return;
+  const n = nonSpace(lines[rec.line].t).length; if (rec.k >= n) return;
+  rec.down = true; rec.st[rec.k] = now() + offset - TAP_LAT; rec.k++; recText();
+}
+function tapUp() {
+  if (!rec.on || !rec.down) return; rec.down = false;
+  const n = nonSpace(lines[rec.line].t).length;
+  if (rec.k >= n) {
+    const up = now() + offset - TAP_LAT, st = rec.st.slice(0, n), en = [];
+    for (let k = 0; k < n - 1; k++) en.push(Math.max(st[k] + 0.05, st[k+1]));
+    en.push(Math.max(st[n-1] + 0.15, up));
+    timing[rec.line] = { st: st.map(r3), en: en.map(r3) };
+    save(); applyTiming();
+    rec.line = Math.min(lines.length - 1, rec.line + 1); rec.k = 0; rec.st = [];
+  }
+  recText();
+}
+function setRec(on) {
+  rec.on = on; $("rec").hidden = !on; $("recBtn").classList.toggle("on", on);
+  if (on) { rec.line = Math.max(0, activeIdx); rec.k = 0; rec.st = []; rec.down = false; setRate(+$("rateSel").value); recText(); }
+  else setRate(1);
+}
+$("recBtn").onclick = () => setRec(!rec.on);
+$("rateSel").onchange = e => setRate(+e.target.value);
+$("tapBtn").addEventListener("pointerdown", e => { e.preventDefault(); tapDown(); });
+window.addEventListener("pointerup", tapUp);
+window.addEventListener("pointercancel", tapUp);
+window.addEventListener("keydown", e => { if (rec.on && e.code === "Space" && !/TEXTAREA|INPUT|SELECT/.test(e.target.tagName)) { e.preventDefault(); if (!e.repeat) tapDown(); } });
+window.addEventListener("keyup", e => { if (rec.on && e.code === "Space" && !/TEXTAREA|INPUT|SELECT/.test(e.target.tagName)) { e.preventDefault(); tapUp(); } });
+$("redoBtn").onclick = () => {
+  delete timing[rec.line]; rec.k = 0; rec.st = []; rec.down = false; save(); applyTiming(); recText();
+  seek(Math.max(0, lines[rec.line].s0 - 2 - offset));
+};
+$("resetBtn").onclick = () => { timing = {}; save(); applyTiming(); rec.k = 0; rec.st = []; recText(); };
+$("copyBtn").onclick = () => {
+  const out = { video: VIDEO_ID, lines: {} };
+  Object.keys(timing).forEach(k => { if (hasTiming(+k)) out.lines[k] = { t: lines[+k].t, st: timing[k].st, en: timing[k].en }; });
+  const txt = JSON.stringify(out);
+  const box = $("jsonBox"); box.hidden = false; box.value = txt; box.focus(); box.select();
+  try { navigator.clipboard.writeText(txt).catch(() => {}); } catch (e) {}
+};
+
+/* ---- player and basic controls ---- */
+function setDemo(on) { demo = on; $("videoBox").classList.toggle("is-demo", on); }
 window.onYouTubeIframeAPIReady = function () {
   try {
     player = new YT.Player("yt", {
       videoId: VIDEO_ID, playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
-      events: {
-        onReady: () => { ytReady = true; setDemo(false); },
-        onError: () => setDemo(true)
-      }
+      events: { onReady: () => { ytReady = true; setDemo(false); }, onError: () => setDemo(true) }
     });
   } catch (e) { setDemo(true); }
 };
-// If the YouTube API cannot load (offline, sandboxed preview), fall back to the demo clock.
 setTimeout(() => { if (!ytReady) setDemo(true); }, 4000);
 
 $("playBtn").onclick = () => {
@@ -413,13 +521,21 @@ $("offPlus").onclick = () => setOffset(offset + 0.1);
 $("srtFile").onchange = e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => { const l = parseSRT(String(r.result)); if (l.length) { lines = l; activeIdx = -2; $("curBase").dataset.k = ""; buildSheet(); } };
+  r.onload = () => { const l = parseSRT(String(r.result)); if (l.length) { lines = l; timing = {}; persist = false; activeIdx = -2; setRec(false); buildSheet(); } };
   r.readAsText(f);
 };
 
+/* ---- boot ---- */
 lines = parseSRT(SRT);
 try { const o = parseFloat(localStorage.getItem("novaKtvOffset:" + VIDEO_ID)); if (!isNaN(o)) setOffset(o); } catch (e) {}
+try { const j = JSON.parse(localStorage.getItem(TKEY) || "null"); if (j && typeof j === "object") timing = j; } catch (e) {}
 buildSheet();
+// Shared default timing, committed next to this page. Timing recorded in this browser wins over it.
+fetch("timing.json").then(r => r.ok ? r.json() : null).then(j => {
+  if (!j || !j.lines) return;
+  Object.keys(j.lines).forEach(k => { if (!timing[k] && lines[+k] && j.lines[k].st) timing[k] = j.lines[k]; });
+  applyTiming();
+}).catch(() => {});
 requestAnimationFrame(frame);
 </script>
 </body>
