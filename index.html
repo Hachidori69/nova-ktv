@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nova KTV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: stage (video + two-line KTV subtitle bar) on top, scrolling lyric sheet and controls below */
+  :root {
+    --bg: #07080f;
+    --panel: #10121d;
+    --line: #232640;
+    --text: #f4f5fb;
+    --dim: #6f7396;
+    --blue: #2f8bff;
+    --blue-glow: #7bb8ff;
+    --font-cjk: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-cjk);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 16px 40px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: .08em; }
+  header span { font-family: var(--font-mono); font-size: 12px; color: var(--dim); }
+
+  .video { position: relative; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line); overflow: hidden; max-width: 100%; }
+  .video iframe, .video #yt { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video .demo {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center;
+    background: radial-gradient(ellipse at 50% 120%, #14246b 0%, #07080f 65%);
+    color: var(--dim); font-family: var(--font-mono); font-size: 13px; padding: 16px;
+  }
+  .video.is-demo .demo { display: flex; }
+
+  .ktv { background: linear-gradient(180deg, #05060c, #0b0d1a); border: 1px solid var(--line); padding: 22px 16px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 190px; justify-content: center; }
+  .row { position: relative; text-align: center; font-weight: 900; line-height: 1.25; }
+  .row .base, .row .fill { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .row .base { color: #fff; }
+  .row .fill { position: absolute; left: 0; top: 0; right: 0; color: var(--blue); clip-path: inset(0 100% 0 0); }
+  .row .base, .row .fill { text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000; }
+  .row.cur { font-size: clamp(26px, 6vw, 46px); }
+  .row.cur .fill { text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000, 0 0 18px rgba(47,139,255,.55); }
+  .row.nxt { font-size: clamp(18px, 3.6vw, 28px); opacity: .62; }
+  .row.nxt .fill { display: none; }
+  .count { position: absolute; left: 0; right: 0; top: -2px; display: flex; justify-content: center; gap: 8px; height: 10px; }
+  .count i { width: 9px; height: 9px; border-radius: 50%; background: var(--blue); opacity: 0; transition: opacity .15s; }
+  .count i.on { opacity: 1; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button, label.btn {
+    font: inherit; font-size: 13px; font-weight: 700; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); padding: 8px 14px; cursor: pointer; min-height: 38px;
+  }
+  button:hover, label.btn:hover { border-color: var(--blue); }
+  button:focus-visible, label.btn:focus-within, input:focus-visible { outline: 2px solid var(--blue-glow); outline-offset: 2px; }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .offset { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--dim); }
+  .offset b { color: var(--text); min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
+  .time { font-family: var(--font-mono); font-size: 12px; color: var(--dim); margin-left: auto; font-variant-numeric: tabular-nums; }
+  input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+  .sheet { background: var(--panel); border: 1px solid var(--line); max-height: 320px; overflow-y: auto; padding: 6px 0; }
+  .sheet button.l { display: flex; gap: 12px; width: 100%; text-align: left; background: none; border: 0; border-left: 3px solid transparent; padding: 8px 14px; min-height: 0; color: var(--dim); font-weight: 500; font-size: 15px; }
+  .sheet button.l time { font-family: var(--font-mono); font-size: 11px; padding-top: 3px; flex: none; font-variant-numeric: tabular-nums; }
+  .sheet button.l.on { color: var(--text); border-left-color: var(--blue); background: rgba(47,139,255,.1); }
+  .sheet button.l:hover { color: var(--text); }
+  .note { font-size: 12px; color: var(--dim); line-height: 1.6; }
+  @media (prefers-reduced-motion: reduce) { .count i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NOVA KTV · <span id="songTitle">黃泉引 LIVE 演唱會</span></h1>
+    <span>blue sweep prototype</span>
+  </header>
+
+  <div class="video" id="videoBox">
+    <div id="yt"></div>
+    <div class="demo">Demo clock mode. Press Play to preview the lyric sweep without the video.</div>
+  </div>
+
+  <div class="ktv" aria-live="off">
+    <div class="row cur" id="cur"><span class="count" id="count"><i></i><i></i><i></i></span><span class="base" id="curBase">&nbsp;</span><span class="fill" id="curFill"></span></div>
+    <div class="row nxt"><span class="base" id="nxt">&nbsp;</span></div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="playBtn">Play</button>
+    <button id="restartBtn">Restart</button>
+    <span class="offset">sync <button id="offMinus" aria-label="Lyrics earlier">-0.1</button><b id="offVal">0.0s</b><button id="offPlus" aria-label="Lyrics later">+0.1</button></span>
+    <label class="btn">Load SRT<input type="file" id="srtFile" accept=".srt,.txt"></label>
+    <span class="time" id="timeLbl">0:00 / 0:00</span>
+  </div>
+
+  <div class="sheet" id="sheet" role="list"></div>
+  <p class="note">If the sweep runs early or late, nudge sync until it matches the vocals. Tap any lyric line to jump to it. Load SRT swaps in another subtitle file for the same video.</p>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+const VIDEO_ID = "ftiH1mg6kbQ";
+const SRT = `1
+00:00:35,966 --> 00:00:41,300
+別回頭
+
+2
+00:00:42,100 --> 00:00:44,833
+走過這座橋
+
+3
+00:00:45,666 --> 00:00:51,433
+你就不痛了
+
+4
+00:00:54,866 --> 00:00:57,266
+我撐白傘 走進夜色
+
+5
+00:00:58,533 --> 00:01:00,833
+紙錢落進 潮濕街側
+
+6
+00:01:00,833 --> 00:01:03,766
+你說還有 一句沒說
+
+7
+00:01:04,433 --> 00:01:05,600
+可人間的門
+
+8
+00:01:06,366 --> 00:01:07,733
+ 早關了
+
+9
+00:01:08,033 --> 00:01:09,766
+燈籠搖啊搖
+
+10
+00:01:09,766 --> 00:01:11,033
+魂魄飄啊飄
+
+11
+00:01:11,033 --> 00:01:12,866
+有人哭著求來世
+
+12
+00:01:12,866 --> 00:01:17,900
+有人名字 已無人知曉
+
+13
+00:01:22,266 --> 00:01:23,666
+黃泉沒有花
+
+14
+00:01:24,000 --> 00:01:25,433
+只有風在刮
+
+15
+00:01:25,433 --> 00:01:27,166
+你說放不下他
+
+16
+00:01:27,166 --> 00:01:28,533
+可他現在
+
+17
+00:01:28,633 --> 00:01:32,233
+ 抱著別人吧
+
+18
+00:01:33,000 --> 00:01:36,333
+忘川的水 會洗掉眼淚
+
+19
+00:01:36,333 --> 00:01:39,966
+可洗不掉 你最後那句「後悔」
+
+20
+00:01:40,233 --> 00:01:41,466
+別過橋
+
+21
+00:01:41,466 --> 00:01:43,666
+橋的那頭沒人等你了
+
+22
+00:01:44,066 --> 00:01:45,033
+別回頭
+
+23
+00:01:45,033 --> 00:01:46,966
+回頭的人 都散了
+
+24
+00:01:47,100 --> 00:01:50,366
+你聽那鐘聲 一聲一聲
+
+25
+00:01:50,566 --> 00:01:53,833
+像誰還喊著你的名
+
+26
+00:01:54,100 --> 00:01:57,566
+可走進黃泉的人
+
+27
+00:01:58,066 --> 00:02:01,466
+最後都得安靜
+
+28
+00:02:02,033 --> 00:02:03,433
+我拖鐵鏈 走過長街
+
+29
+00:02:03,433 --> 00:02:04,833
+專抓那些 不肯熄滅
+
+30
+00:02:04,833 --> 00:02:06,300
+有人怪命 有人怪天
+
+31
+00:02:06,300 --> 00:02:08,433
+可死到最後 都逃不出此劫
+
+32
+00:02:08,433 --> 00:02:09,833
+你說不服？ 那就別哭
+
+33
+00:02:09,833 --> 00:02:12,133
+閻王寫好的路 誰都得 赴這黃土
+
+34
+00:02:12,133 --> 00:02:13,800
+我見過神 也見過佛
+
+35
+00:02:13,800 --> 00:02:16,266
+死前閉眼那刻 其實跟凡人  一樣逃不過
+
+36
+00:02:17,133 --> 00:02:18,666
+如果真的有來生
+
+37
+00:02:18,666 --> 00:02:19,933
+你還敢愛嗎？
+
+38
+00:02:20,500 --> 00:02:21,600
+…… 那你呢？
+
+39
+00:02:30,500 --> 00:02:31,800
+別過橋
+
+40
+00:02:31,800 --> 00:02:33,833
+橋的那頭沒有光了
+
+41
+00:02:33,833 --> 00:02:35,133
+別回頭
+
+42
+00:02:35,133 --> 00:02:37,366
+回頭的人 都忘了
+
+43
+00:02:37,366 --> 00:02:40,500
+你聽那風聲 一陣一陣
+
+44
+00:02:40,633 --> 00:02:43,566
+像誰還念著你的名
+
+45
+00:02:44,000 --> 00:02:48,666
+可黃泉盡頭的人
+
+46
+00:02:50,933 --> 00:02:55,000
+最後只剩回音
+
+47
+00:02:55,833 --> 00:02:58,233
+下輩子……
+
+48
+00:03:00,200 --> 00:03:02,600
+下輩子……
+`;
+
+const $ = id => document.getElementById(id);
+let lines = [], offset = 0, player = null, ytReady = false, demo = false;
+let demoT = 0, demoPlaying = false, demoLast = 0, activeIdx = -2;
+
+function ts(s) { const m = s.match(/(\d+):(\d+):(\d+)[,.](\d+)/); return +m[1]*3600 + +m[2]*60 + +m[3] + +m[4]/1000; }
+function parseSRT(txt) {
+  return txt.replace(/\r/g, "").split(/\n\s*\n/).map(b => {
+    const p = b.trim().split("\n"); if (p.length < 3) return null;
+    const m = p[1].match(/(\S+)\s*-->\s*(\S+)/); if (!m) return null;
+    return { s: ts(m[1]), e: ts(m[2]), t: p.slice(2).join("\n").trim() };
+  }).filter(Boolean);
+}
+function fmt(t) { t = Math.max(0, t|0); return Math.floor(t/60) + ":" + String(t%60).padStart(2, "0"); }
+
+function buildSheet() {
+  const sh = $("sheet"); sh.innerHTML = "";
+  lines.forEach((l, i) => {
+    const b = document.createElement("button");
+    b.className = "l"; b.dataset.i = i; b.setAttribute("role", "listitem");
+    b.innerHTML = "<time>" + fmt(l.s) + "</time><span></span>";
+    b.lastChild.textContent = l.t;
+    b.onclick = () => seek(Math.max(0, l.s - 1.5 - offset));
+    sh.appendChild(b);
+  });
+}
+
+function now() {
+  if (!demo && ytReady && player && player.getCurrentTime) return player.getCurrentTime();
+  return demoT;
+}
+function dur() { return (!demo && ytReady && player && player.getDuration) ? player.getDuration() : (lines.length ? lines[lines.length-1].e + 5 : 0); }
+function seek(t) {
+  if (!demo && ytReady) { player.seekTo(t, true); } else { demoT = t; demoLast = performance.now(); }
+}
+function isPlaying() {
+  if (!demo && ytReady) return player.getPlayerState && player.getPlayerState() === 1;
+  return demoPlaying;
+}
+
+function setActive(i) {
+  if (i === activeIdx) return; activeIdx = i;
+  document.querySelectorAll(".sheet .l.on").forEach(n => n.classList.remove("on"));
+  const n = document.querySelector('.sheet .l[data-i="' + i + '"]');
+  if (n) { n.classList.add("on"); const sh = $("sheet"); sh.scrollTop = n.offsetTop - sh.clientHeight/2 + n.clientHeight/2; }
+}
+
+function frame() {
+  if (demo || !ytReady) {
+    if (demoPlaying) { const n = performance.now(); demoT += (n - demoLast)/1000; demoLast = n; }
+  }
+  const t = now() + offset;
+  let cur = -1, next = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (t >= lines[i].s && t < lines[i].e) { cur = i; next = i + 1; break; }
+    if (lines[i].s > t) { next = i; break; }
+  }
+  const shown = cur >= 0 ? cur : next;
+  const curTxt = shown >= 0 && lines[shown] ? lines[shown].t : "";
+  const nxtTxt = (cur >= 0 ? lines[cur+1] : lines[next+1]) ? (cur >= 0 ? lines[cur+1].t : lines[next+1].t) : "";
+  if ($("curBase").dataset.k !== String(shown)) {
+    $("curBase").textContent = curTxt || " "; $("curFill").textContent = curTxt; $("curBase").dataset.k = shown;
+    $("nxt").textContent = nxtTxt || " ";
+  }
+  let p = 0;
+  if (cur >= 0) p = Math.min(1, (t - lines[cur].s) / Math.max(0.2, lines[cur].e - lines[cur].s));
+  else if (cur === -1 && shown === -1 && lines.length) p = 1;
+  $("curFill").style.clipPath = "inset(0 " + ((1 - p) * 100).toFixed(2) + "% 0 0)";
+
+  // countdown dots before a line that follows a gap of 3s or more
+  const dots = $("count").children;
+  let left = cur < 0 && next >= 0 ? lines[next].s - t : 99;
+  const gapBefore = next > 0 ? lines[next].s - lines[next-1].e : lines[next] ? lines[next].s : 0;
+  for (let i = 0; i < 3; i++) dots[i].classList.toggle("on", cur < 0 && left <= 3 - i && left > 0 && gapBefore >= 3);
+
+  setActive(cur >= 0 ? cur : (next > 0 ? next - 1 : -1));
+  $("timeLbl").textContent = fmt(now()) + " / " + fmt(dur());
+  $("playBtn").textContent = isPlaying() ? "Pause" : "Play";
+  requestAnimationFrame(frame);
+}
+
+function setDemo(on) {
+  demo = on; $("videoBox").classList.toggle("is-demo", on);
+}
+window.onYouTubeIframeAPIReady = function () {
+  try {
+    player = new YT.Player("yt", {
+      videoId: VIDEO_ID, playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+      events: {
+        onReady: () => { ytReady = true; setDemo(false); },
+        onError: () => setDemo(true)
+      }
+    });
+  } catch (e) { setDemo(true); }
+};
+// If the YouTube API cannot load (offline, sandboxed preview), fall back to the demo clock.
+setTimeout(() => { if (!ytReady) setDemo(true); }, 4000);
+
+$("playBtn").onclick = () => {
+  if (!demo && ytReady) { isPlaying() ? player.pauseVideo() : player.playVideo(); }
+  else { demoPlaying = !demoPlaying; demoLast = performance.now(); }
+};
+$("restartBtn").onclick = () => { seek(0); if (!demo && ytReady) player.playVideo(); else { demoPlaying = true; demoLast = performance.now(); } };
+function setOffset(v) { offset = Math.round(v * 10) / 10; $("offVal").textContent = (offset > 0 ? "+" : "") + offset.toFixed(1) + "s"; try { localStorage.setItem("novaKtvOffset:" + VIDEO_ID, offset); } catch (e) {} }
+$("offMinus").onclick = () => setOffset(offset - 0.1);
+$("offPlus").onclick = () => setOffset(offset + 0.1);
+$("srtFile").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { const l = parseSRT(String(r.result)); if (l.length) { lines = l; activeIdx = -2; $("curBase").dataset.k = ""; buildSheet(); } };
+  r.readAsText(f);
+};
+
+lines = parseSRT(SRT);
+try { const o = parseFloat(localStorage.getItem("novaKtvOffset:" + VIDEO_ID)); if (!isNaN(o)) setOffset(o); } catch (e) {}
+buildSheet();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
